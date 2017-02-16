@@ -1,0 +1,26 @@
+{
+  "name": "codingdojo-tsnode",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/slackbot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/lodash": "^4.14.52",
+    "@types/moment": "^2.13.0",
+    "@types/slack-node": "^0.1.1",
+    "typescript": "^2.1.6"
+  },
+  "dependencies": {
+    "lodash": "^4.17.4",
+    "moment": "^2.17.1",
+    "slack-node": "^0.1.8"
+  }
+}
