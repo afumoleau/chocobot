@@ -1,6 +1,9 @@
 import * as Slack from 'slack-node';
 import * as _ from 'lodash';
 import * as moment from 'moment';
+import * as express from 'express';
+import * as socketio from 'socket.io';
+import * as cors from 'cors';
 
 type Channel = {
 	id:string,
@@ -18,8 +21,13 @@ class SlackBot {
 	userList: User[];
 	channelList: Channel[];
 	chocoChannel: Channel;
-	weekCounter = Math.floor(moment.duration(Date.now()).asWeeks())-1;
-	checkInterval = moment.duration(1, 'second').asMilliseconds();
+	periodCounter = 0;
+	checkInterval = moment.duration(0.5, 'second').asMilliseconds();
+	alertOffset = moment.duration();
+	period = 'second';
+	startDate = moment();
+	httpServer = express();
+	socketioServer;
 
 	constructor() {
 		this.slack = new Slack('TOKEN');
@@ -29,37 +37,45 @@ class SlackBot {
 
 		this.retrieveStartData();
 		setInterval(() => { this.checkChoco(); }, this.checkInterval);
+
+		this.httpServer.use(cors());
+		this.httpServer.get('/channels', (req, res) => { res.send(this.channelList); });
+		this.httpServer.get('/users', (req, res) => { res.send(this.userList); });
+		this.httpServer.listen(24601);
+
+		this.socketioServer = socketio.listen(24602);
 	}
 
 	retrieveStartData() {
 		this.slack.api('users.list', (err, data) => { this.userList = data.members; });
 		this.slack.api('channels.list', (err, data) => {
 			this.channelList = data.channels;
-			this.chocoChannel = _.find(this.channelList, {name: 'choco'});
+			this.chocoChannel = _.find(this.channelList, {name: 'codingdojotest'});
 		});
 	}
 
 	checkChoco() {
-		var weekCount = Math.floor(moment.duration(Date.now()).asWeeks());
-		if(weekCount > this.weekCounter) {
-			var nextAlertOccurence = moment().startOf('isoWeek').add(3, 'days').add(15, 'hours');
-			if(moment() > nextAlertOccurence) {				
-				this.alertChoco();
-				this.weekCounter = weekCount;
+		var periodCount = Math.floor(moment.duration(moment().diff(this.startDate)).as(this.period as any));
+		if(periodCount > this.periodCounter) {
+			var nextAlertOccurence = moment().startOf(this.period as moment.unitOfTime.StartOf).add(this.alertOffset);
+			if(moment() > nextAlertOccurence) {
+				this.alertChoco(periodCount);
+				this.periodCounter = periodCount;
 			}
 		}
 	}
 
-	alertChoco() {
+	alertChoco(periodCount: Number) {
 		this.slack.api('channels.info', {channel: this.chocoChannel.id}, (err, data) => {
-			var user = this.chooseNextUser(data.channel.members);
-			this.slack.api('chat.postMessage', {text: `<@${user.name}> turn`, channel: this.chocoChannel.id}, () => {});
+			var user = this.chooseNextUser(data.channel.members, periodCount);
+			//this.slack.api('chat.postMessage', {text: `<@${user.name}> turn`, channel: this.chocoChannel.id}, () => {});
+			this.socketioServer.emit('turn', user.name);
+			console.log(user.name);
 		});
 	}
 
-	chooseNextUser(members) {
-		//TODO
-		return _.find(this.userList, {id: members[0]});
+	chooseNextUser(members, count) {
+		return _.find(this.userList, {id: members[count % members.length]});
 	}
 }
 
